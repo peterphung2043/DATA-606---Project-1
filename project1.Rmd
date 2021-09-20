@@ -1,0 +1,85 @@
+---
+title: "DATA 607 - Project 1"
+author: "Peter Phung"
+output: html_document
+---
+
+## Introduction
+
+We are asked to parse through a text file containing chess tournament results in order to extract the following:
+
+- Player's name
+- Player's state
+- Total number of points for that player
+- Player's pre-rating
+- Average pre chess rating of the opponents for the player
+
+The data is presented in a dataframe which is then exported to a .csv file. Regex expressions were used to turn the unstructured data from the text file to structured data to be further analyzed. Only the wins, losses, and draws were factored into the average pre chess ratings.
+
+## R Code for Extracting the Data
+Each of the chess player's pieces of relevannt information, such as name and state, were extracted and stored onto vectors. All of the extracted vectors were then stored into a dataframe called `test_df`
+
+```{r importing libraries, echo = FALSE, message = FALSE}
+library(readr)
+library(tidyverse)
+library(knitr)
+```
+
+```{r extracting relevant information}
+
+urlfile <- 'https://raw.githubusercontent.com/peterphung2043/DATA-606---Project-1/main/tournamentinfo.txt'
+raw_text <- read_file(url(urlfile))
+
+## Make it so that each player stat is a string vector.
+each_player <- str_extract_all(raw_text, '\\r\\n[\\s]+[:digit:]*\\s[|].*\\r\\n[\\s]+[:alpha:]{2}\\s[|].*')[[1]]
+
+players <- vector()
+states <- vector()
+pre_ratings <- vector()
+total_num_pts <- vector()
+
+for (i in 1:length(each_player)) {
+  test_player <- each_player[i]
+  name_with_ending_space <- str_extract(test_player, "(?<=[|]\\s)([:alpha:]+\\s{1}|[:alpha:]+\\-[:alpha:]+\\s{1})+")
+  players[i] <- substr(name_with_ending_space, 1, nchar(name_with_ending_space) - 1)
+  states[i] <- str_extract(test_player, '(?<=\\s\\s)[:upper:]{2}(?=\\s[|])')
+  pre_ratings[i] <- as.integer(str_match(test_player, 'R:\\s+(\\d+)')[1, 2])
+  total_num_pts[i] <- str_extract(test_player, '(?<=[|])\\d+\\.\\d+')
+}
+
+test_df <- data.frame("players" = players, "states" = states, "total_num_pts" = total_num_pts,
+                      "pre_ratings" = pre_ratings)
+
+kable(test_df)
+```
+
+Then the average pre-chess rating of the opponents for each player was calculated and stored onto the `test_df` dataframe. The code and resulting dataframe are shown below.
+
+```{r average pre chess rating}
+avg_pre_chess_func <- function(wld_vector){
+  aggregated_pre_ratings <- vector()
+  for (i in 1:length(wld_vector)){
+    aggregated_pre_ratings[i] <- test_df$pre_ratings[wld_vector[i]]
+  }
+  return(round(mean(aggregated_pre_ratings)))
+}
+
+avg_pre_chess_ratings <- vector()
+for (i in 1:length(each_player)){
+  test_player <- each_player[i]
+  raw_opponents <- str_extract_all(test_player, '[|](W|L|D)\\s*[:digit:]+')[[1]]
+  wlds <- as.integer(str_extract(raw_opponents, '[:digit:]+'))
+  avg_pre_chess_ratings[i] <- avg_pre_chess_func(wlds)
+}
+
+test_df <- add_column(test_df, avg_pre_chess_ratings = avg_pre_chess_ratings)
+kable(test_df)
+```
+The next code snippet below exports the `test_df` dataframe to a .csv file in your current working directory. The .csv file is called `tournament.csv`.
+
+```{r exporting to csv}
+write.csv(test_df, "tournament.csv", row.names = FALSE)
+```
+
+### Conclusion
+This project was great for getting hands on practice with regular expressions. This chess data was a great example of unstructured data and is a very interesting data set. It would be great to further analyze this data with the withdrawals and half points for a future project.
